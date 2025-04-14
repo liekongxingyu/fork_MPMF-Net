@@ -1,5 +1,7 @@
 ###  Multi-axis Prompt and Multi-dimension Fusion Network for All-in-one Weather-degraded Image Restoration
 
+[![Paper](https://img.shields.io/badge/Paper-AAAI%202025-blue)](https://ojs.aaai.org/index.php/AAAI/article/view/32898)  
+
 **Abstract**: Existing approaches aiming to remove adverse weather degradations compromise the image quality and incur the long processing time. To this end, we introduce a multi-axis prompt and multi-dimension fusion network (MPMF-Net). Specifically, we develop a multi-axis prompts learning block (MPLB), which learns the prompts along three separate axis planes, requiring fewer parameters and achieving superior performance. Moreover, we present a multi-dimension feature interaction block (MFIB), which optimizes intra-scale feature fusion by segregating features along height, width and channel dimensions. This strategy enables more accurate mutual attention and adaptive weight determination. Additionally, we propose the coarse-scale degradation-free implicit neural representations (CDINR) to normalize the degradation levels of different weather conditions. Extensive experiments demonstrate the significant improvements of our model over the recent well-performing approaches in both reconstruction fidelity and inference time.
 
 ### News 🚀🚀🚀
@@ -82,6 +84,23 @@ python test.py
 ### Result
 
 For any possible needs, we also provide the results all relevant methods in [[Baidu Netdisk](https://pan.baidu.com/s/1kBRwdC-gobaovUAMf8KSUg), code: awtd].
+
+### Citation
+
+If our work is helpful to your research, please cite our paper following this.
+
+```python
+@inproceedings{wen2025multi,
+  title={Multi-axis Prompt and Multi-dimension Fusion Network for All-in-one Weather-degraded Image Restoration},
+  author={Wen, Yuanbo and Gao, Tao and Zhang, Jing and Li, Ziqi and Chen, Ting},
+  booktitle={Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume={39},
+  number={8},
+  pages={8323--8331},
+  year={2025},
+  DOI={10.1609/aaai.v39i8.32898}
+}
+```
 
 ### Contact us
 
