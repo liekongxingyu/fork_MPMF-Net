@@ -6,6 +6,9 @@ from torch.nn import functional as F
 hidden_list = [256, 256, 256]
 L = 4
 
+# 为给定形状的张量生成标准化的坐标网格，通常用于隐式神经表示中的位置编码
+
+
 def make_coord(shape, ranges=None, flatten=True):
     coord_seqs = []
     for i, n in enumerate(shape):
@@ -16,6 +19,8 @@ def make_coord(shape, ranges=None, flatten=True):
         r = (v1 - v0) / (2 * n)
         seq = v0 + r + (2 * r) * torch.arange(n).float()
         coord_seqs.append(seq)
+
+    # 生成网格坐标:[H,W,2]
     ret = torch.stack(torch.meshgrid(*coord_seqs), dim=-1)
     if flatten:
         ret = ret.view(-1, ret.shape[-1])
@@ -39,12 +44,20 @@ class MLP(nn.Module):
         x = self.layers(x.view(-1, x.shape[-1]))
         return x.view(*shape, -1)
 
+
+# 针对图片单个像素（通道是多个）
+# 实现f(x,y) -> (r,g,b)的映射
 class INR(nn.Module):
     def __init__(self, dim, local_ensemble=True, feat_unfold=True, cell_decode=True):
         super().__init__()
+        # 是否使用局部集合方法进行预测
         self.local_ensemble = local_ensemble
+        # 是否展开特征图（扩大感受野）
         self.feat_unfold = feat_unfold
+        # 是否使用单元格解码（结合单元格信息进行预测）
         self.cell_decode = cell_decode
+
+        # dim为hxw其中一个像素的所有通道，那么下面的cell_decode就是该像素的xy坐标
         imnet_in_dim = dim
 
         if self.feat_unfold:
@@ -61,6 +74,7 @@ class INR(nn.Module):
             feat = F.unfold(feat, 3, padding=1).view(
                 feat.shape[0], feat.shape[1] * 9, feat.shape[2], feat.shape[3])
 
+        # 使用邻近四个位置进行预测
         if self.local_ensemble:
             vx_lst = [-1, 1]
             vy_lst = [-1, 1]
@@ -71,9 +85,8 @@ class INR(nn.Module):
         rx = 2 / feat.shape[-2] / 2
         ry = 2 / feat.shape[-1] / 2
 
-        feat_coord = make_coord(feat.shape[-2:], flatten=False).cuda() \
-            .permute(2, 0, 1) \
-            .unsqueeze(0).expand(feat.shape[0], 2, *feat.shape[-2:])
+        # 形成每个像素位置对应的标准化坐标
+        feat_coord = make_coord(feat.shape[-2:], flatten=False).cuda().permute(2, 0, 1).unsqueeze(0).expand(feat.shape[0], 2, *feat.shape[-2:])
 
         preds = []
         areas = []
@@ -113,11 +126,11 @@ class INR(nn.Module):
 
         tot_area = torch.stack(areas).sum(dim=0)
         if self.local_ensemble:
-            t = areas[0];
-            areas[0] = areas[3];
+            t = areas[0]
+            areas[0] = areas[3]
             areas[3] = t
-            t = areas[1];
-            areas[1] = areas[2];
+            t = areas[1]
+            areas[1] = areas[2]
             areas[2] = t
         ret = 0
         for pred, area in zip(preds, areas):
@@ -141,6 +154,7 @@ class INR(nn.Module):
 
         return self.query_rgb(inp, coord, cell)
 
+    # 将原本简单的x,y坐标编码为三角函数，捕捉高频信息
     def positional_encoding(self, input, L):
         shape = input.shape
         freq = 2 ** torch.arange(L, dtype=torch.float32).cuda() * np.pi

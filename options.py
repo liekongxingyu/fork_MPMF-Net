@@ -5,16 +5,16 @@ class Options():
         self.Seed = 1234
         self.Epoch = 400
         self.Learning_Rate = 2e-4
-        self.Batch_Size_Train = 32
-        self.Batch_Size_Val = 32
-        self.Patch_Size_Train = 256
-        self.Patch_Size_Val = 256
+        self.Batch_Size_Train = 6
+        self.Batch_Size_Val = 6
+        self.Patch_Size_Train = 128
+        self.Patch_Size_Val = 128
 
-        self.Input_Path_Train = './AWTD/train/input'
-        self.Target_Path_Train = './AWTD/train/target'
+        self.Input_Path_Train = '../Dataset/Snow100K/Train/Snow'
+        self.Target_Path_Train = '../Dataset/Snow100K/Train/GT'
 
-        self.Input_Path_Val = './AWTD/test/RainDS-syn/input'
-        self.Target_Path_Val = './AWTD/test/RainDS-syn/target'
+        self.Input_Path_Val = '../Dataset/Snow100K/Val/Snow'
+        self.Target_Path_Val = '../Dataset/Snow100K/Val/GT'
 
         self.Dataset_Names = [
                               'FoggyCityscapes',

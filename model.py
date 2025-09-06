@@ -7,18 +7,23 @@ from timm.models.layers import to_2tuple, trunc_normal_
 from INR import INR
 
 
+# 改进的层归一化
 class RLN(nn.Module):
     r"""Revised LayerNorm"""
 
     def __init__(self, dim, eps=1e-5, detach_grad=False):
         super(RLN, self).__init__()
+        # 数值稳定性参数
         self.eps = eps
+        # 梯度控制参数
         self.detach_grad = detach_grad
 
         self.weight = nn.Parameter(torch.ones((1, dim, 1, 1)))
         self.bias = nn.Parameter(torch.zeros((1, dim, 1, 1)))
 
+        # 基于标准差生成rescale（重缩放因子）
         self.meta1 = nn.Conv2d(1, dim, 1)
+        # 基于均值生成rebias（重偏移因子）
         self.meta2 = nn.Conv2d(1, dim, 1)
 
         trunc_normal_(self.meta1.weight, std=.02)
@@ -28,6 +33,7 @@ class RLN(nn.Module):
         nn.init.constant_(self.meta2.bias, 0)
 
     def forward(self, input):
+        # C,H,W都做标准化
         mean = torch.mean(input, dim=(1, 2, 3), keepdim=True)
         std = torch.sqrt((input - mean).pow(2).mean(dim=(1, 2, 3), keepdim=True) + self.eps)
 
@@ -99,6 +105,7 @@ def get_relative_positions(window_size):
     return relative_positions_log
 
 
+# 窗口自注意力
 class WindowAttention(nn.Module):
     def __init__(self, dim, window_size, num_heads):
         super().__init__()
@@ -355,6 +362,7 @@ class MFIB(nn.Module):
         self.scale_w = nn.Parameter(torch.ones((1)), requires_grad=True)
         self.scale_c = nn.Parameter(torch.ones((1)), requires_grad=True)
 
+        # u和d是上下分支（编码器和解码器）
         self.norm_u = RLN(dim)
         self.norm_d = RLN(dim)
 
