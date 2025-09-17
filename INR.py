@@ -46,7 +46,7 @@ class MLP(nn.Module):
 
 
 # 针对图片单个像素（通道是多个）
-# 实现f(x,y) -> (r,g,b)的映射
+# 实现f(x,y) -> f(r,g,b)的映射
 class INR(nn.Module):
     def __init__(self, dim, local_ensemble=True, feat_unfold=True, cell_decode=True):
         super().__init__()

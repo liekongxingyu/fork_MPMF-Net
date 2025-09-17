@@ -35,12 +35,14 @@ class RLN(nn.Module):
     def forward(self, input):
         # C,H,W都做标准化
         mean = torch.mean(input, dim=(1, 2, 3), keepdim=True)
-        std = torch.sqrt((input - mean).pow(2).mean(dim=(1, 2, 3), keepdim=True) + self.eps)
+        std = torch.sqrt(
+            (input - mean).pow(2).mean(dim=(1, 2, 3), keepdim=True) + self.eps)
 
         normalized_input = (input - mean) / std
 
         if self.detach_grad:
-            rescale, rebias = self.meta1(std.detach()), self.meta2(mean.detach())
+            rescale, rebias = self.meta1(
+                std.detach()), self.meta2(mean.detach())
         else:
             rescale, rebias = self.meta1(std), self.meta2(mean)
 
@@ -79,14 +81,17 @@ class Mlp(nn.Module):
 
 def window_partition(x, window_size):
     B, H, W, C = x.shape
-    x = x.view(B, H // window_size, window_size, W // window_size, window_size, C)
-    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size ** 2, C)
+    x = x.view(B, H // window_size, window_size,
+               W // window_size, window_size, C)
+    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous(
+    ).view(-1, window_size ** 2, C)
     return windows
 
 
 def window_reverse(windows, window_size, H, W):
     B = int(windows.shape[0] / (H * W / window_size / window_size))
-    x = windows.view(B, H // window_size, W // window_size, window_size, window_size, -1)
+    x = windows.view(B, H // window_size, W // window_size,
+                     window_size, window_size, -1)
     x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, H, W, -1)
     return x
 
@@ -97,10 +102,13 @@ def get_relative_positions(window_size):
 
     coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
     coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
-    relative_positions = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
+    relative_positions = coords_flatten[:, :, None] - \
+        coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
 
-    relative_positions = relative_positions.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
-    relative_positions_log = torch.sign(relative_positions) * torch.log(1. + relative_positions.abs())
+    relative_positions = relative_positions.permute(
+        1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
+    relative_positions_log = torch.sign(
+        relative_positions) * torch.log(1. + relative_positions.abs())
 
     return relative_positions_log
 
@@ -128,15 +136,18 @@ class WindowAttention(nn.Module):
     def forward(self, qkv):
         B_, N, _ = qkv.shape
 
-        qkv = qkv.reshape(B_, N, 3, self.num_heads, self.dim // self.num_heads).permute(2, 0, 3, 1, 4)
+        qkv = qkv.reshape(B_, N, 3, self.num_heads, self.dim //
+                          self.num_heads).permute(2, 0, 3, 1, 4)
 
-        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
+        # make torchscript happy (cannot use tensor as tuple)
+        q, k, v = qkv[0], qkv[1], qkv[2]
 
         q = q * self.scale
         attn = (q @ k.transpose(-2, -1))
 
         relative_position_bias = self.meta(self.relative_positions)
-        relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
+        relative_position_bias = relative_position_bias.permute(
+            2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
         attn = attn + relative_position_bias.unsqueeze(0)
 
         attn = self.softmax(attn)
@@ -161,13 +172,16 @@ class Attention(nn.Module):
 
         if self.conv_type == 'Conv':
             self.conv = nn.Sequential(
-                nn.Conv2d(dim, dim, kernel_size=3, padding=1, padding_mode='reflect'),
+                nn.Conv2d(dim, dim, kernel_size=3,
+                          padding=1, padding_mode='reflect'),
                 nn.ReLU(True),
-                nn.Conv2d(dim, dim, kernel_size=3, padding=1, padding_mode='reflect')
+                nn.Conv2d(dim, dim, kernel_size=3,
+                          padding=1, padding_mode='reflect')
             )
 
         if self.conv_type == 'DWConv':
-            self.conv = nn.Conv2d(dim, dim, kernel_size=5, padding=2, groups=dim, padding_mode='reflect')
+            self.conv = nn.Conv2d(dim, dim, kernel_size=5,
+                                  padding=2, groups=dim, padding_mode='reflect')
 
         if self.conv_type == 'DWConv' or self.use_attn:
             self.V = nn.Conv2d(dim, dim, 1)
@@ -198,8 +212,10 @@ class Attention(nn.Module):
 
     def check_size(self, x, shift=False):
         _, _, h, w = x.size()
-        mod_pad_h = (self.window_size - h % self.window_size) % self.window_size
-        mod_pad_w = (self.window_size - w % self.window_size) % self.window_size
+        mod_pad_h = (self.window_size - h %
+                     self.window_size) % self.window_size
+        mod_pad_w = (self.window_size - w %
+                     self.window_size) % self.window_size
 
         if shift:
             x = F.pad(x, (self.shift_size, (self.window_size - self.shift_size + mod_pad_w) % self.window_size,
@@ -225,15 +241,18 @@ class Attention(nn.Module):
 
             # partition windows
             shifted_QKV = shifted_QKV.permute(0, 2, 3, 1)
-            qkv = window_partition(shifted_QKV, self.window_size)  # nW*B, window_size**2, C
+            # nW*B, window_size**2, C
+            qkv = window_partition(shifted_QKV, self.window_size)
 
             attn_windows = self.attn(qkv)
 
             # merge windows
-            shifted_out = window_reverse(attn_windows, self.window_size, Ht, Wt)  # B H' W' C
+            shifted_out = window_reverse(
+                attn_windows, self.window_size, Ht, Wt)  # B H' W' C
 
             # reverse cyclic shift
-            out = shifted_out[:, self.shift_size:(self.shift_size + H), self.shift_size:(self.shift_size + W), :]
+            out = shifted_out[:, self.shift_size:(
+                self.shift_size + H), self.shift_size:(self.shift_size + W), :]
             attn_out = out.permute(0, 3, 1, 2)
 
             if self.conv_type in ['Conv', 'DWConv']:
@@ -263,20 +282,26 @@ class TransformerBlock(nn.Module):
         self.attn = Attention(network_depth, dim, num_heads=num_heads, window_size=window_size,
                               shift_size=shift_size, use_attn=use_attn, conv_type=conv_type)
 
-        self.norm2 = norm_layer(dim) if use_attn and mlp_norm else nn.Identity()
-        self.mlp = Mlp(network_depth, dim, hidden_features=int(dim * mlp_ratio))
+        self.norm2 = norm_layer(
+            dim) if use_attn and mlp_norm else nn.Identity()
+        self.mlp = Mlp(network_depth, dim,
+                       hidden_features=int(dim * mlp_ratio))
 
     def forward(self, x):
         identity = x
-        if self.use_attn: x, rescale, rebias = self.norm1(x)
+        if self.use_attn:
+            x, rescale, rebias = self.norm1(x)
         x = self.attn(x)
-        if self.use_attn: x = x * rescale + rebias
+        if self.use_attn:
+            x = x * rescale + rebias
         x = identity + x
 
         identity = x
-        if self.use_attn and self.mlp_norm: x, rescale, rebias = self.norm2(x)
+        if self.use_attn and self.mlp_norm:
+            x, rescale, rebias = self.norm2(x)
         x = self.mlp(x)
-        if self.use_attn and self.mlp_norm: x = x * rescale + rebias
+        if self.use_attn and self.mlp_norm:
+            x = x * rescale + rebias
         x = identity + x
         return x
 
@@ -292,12 +317,14 @@ class BasicLayer(nn.Module):
 
         attn_depth = attn_ratio * depth
 
+        # 不是每个block都用注意力机制，有时候用卷积
         if attn_loc == 'last':
             use_attns = [i >= depth - attn_depth for i in range(depth)]
         elif attn_loc == 'first':
             use_attns = [i < attn_depth for i in range(depth)]
         elif attn_loc == 'middle':
-            use_attns = [i >= (depth - attn_depth) // 2 and i < (depth + attn_depth) // 2 for i in range(depth)]
+            use_attns = [i >= (depth - attn_depth) // 2 and i <
+                         (depth + attn_depth) // 2 for i in range(depth)]
 
         # build blocks
         self.blocks = nn.ModuleList([
@@ -307,13 +334,17 @@ class BasicLayer(nn.Module):
                              mlp_ratio=mlp_ratio,
                              norm_layer=norm_layer,
                              window_size=window_size,
-                             shift_size=0 if (i % 2 == 0) else window_size // 2,
+                             shift_size=0 if (
+                                 i % 2 == 0) else window_size // 2,
                              use_attn=use_attns[i], conv_type=conv_type)
             for i in range(depth)])
 
     def forward(self, x):
+        print(x.shape)
         for blk in self.blocks:
             x = blk(x)
+
+        print(x.shape)
         return x
 
 
@@ -398,7 +429,8 @@ class MFIB(nn.Module):
         v_d_w = v_d_w.permute(0, 2, 3, 1)
         attn_w = torch.matmul(q_u_w, k_d_w) * self.scale_w
         x_d2u_w = torch.matmul(torch.softmax(attn_w, dim=-1), v_d_w)
-        x_u2d_w = torch.matmul(torch.softmax(attn_w.transpose(-1, -2), dim=-1), v_u_w)
+        x_u2d_w = torch.matmul(torch.softmax(
+            attn_w.transpose(-1, -2), dim=-1), v_u_w)
 
         # c
         b, c, h, w = q_u_c.shape
@@ -407,11 +439,15 @@ class MFIB(nn.Module):
         v_u_c = v_u_c.reshape(b, c, h * w)
         v_d_c = v_d_c.reshape(b, c, h * w)
         attn_c = torch.matmul(q_u_c, k_d_c) * self.scale_c
-        x_d2u_c = torch.matmul(torch.softmax(attn_c, dim=-1), v_d_c).reshape(b, c, h, w)
-        x_u2d_c = torch.matmul(torch.softmax(attn_c, dim=-1), v_u_c).reshape(b, c, h, w)
+        x_d2u_c = torch.matmul(torch.softmax(
+            attn_c, dim=-1), v_d_c).reshape(b, c, h, w)
+        x_u2d_c = torch.matmul(torch.softmax(
+            attn_c, dim=-1), v_u_c).reshape(b, c, h, w)
 
-        x_d2u = torch.cat([x_d2u_h.permute(0, 3, 2, 1), x_d2u_w.permute(0, 3, 1, 2), x_d2u_c], dim=1)
-        x_u2d = torch.cat([x_u2d_h.permute(0, 3, 2, 1), x_u2d_w.permute(0, 3, 1, 2), x_u2d_c], dim=1)
+        x_d2u = torch.cat([x_d2u_h.permute(0, 3, 2, 1),
+                          x_d2u_w.permute(0, 3, 1, 2), x_d2u_c], dim=1)
+        x_u2d = torch.cat([x_u2d_h.permute(0, 3, 2, 1),
+                          x_u2d_w.permute(0, 3, 1, 2), x_u2d_c], dim=1)
 
         x_u = x_d2u * rescale_u + bias_u + x_u
 
@@ -427,14 +463,20 @@ class MPLB(nn.Module):
 
         partial_dim = int(dim // 3)
 
-        self.hw = nn.Parameter(torch.ones(1, partial_dim, size[0], size[1]), requires_grad=True)
-        self.conv_hw = nn.Conv2d(partial_dim, partial_dim, kernel_size=to_2tuple(3), padding=1, groups=partial_dim, bias=bias)
+        self.hw = nn.Parameter(torch.ones(
+            1, partial_dim, size[0], size[1]), requires_grad=True)
+        self.conv_hw = nn.Conv2d(partial_dim, partial_dim, kernel_size=to_2tuple(
+            3), padding=1, groups=partial_dim, bias=bias)
 
-        self.ch = nn.Parameter(torch.ones(1, 1, partial_dim, size[0]), requires_grad=True)
-        self.conv_ch = nn.Conv1d(partial_dim, partial_dim, kernel_size=3, padding=1, groups=partial_dim, bias=bias)
+        self.ch = nn.Parameter(torch.ones(
+            1, 1, partial_dim, size[0]), requires_grad=True)
+        self.conv_ch = nn.Conv1d(
+            partial_dim, partial_dim, kernel_size=3, padding=1, groups=partial_dim, bias=bias)
 
-        self.cw = nn.Parameter(torch.ones(1, 1, partial_dim, size[1]), requires_grad=True)
-        self.conv_cw = nn.Conv1d(partial_dim, partial_dim, kernel_size=3, padding=1, groups=partial_dim, bias=bias)
+        self.cw = nn.Parameter(torch.ones(
+            1, 1, partial_dim, size[1]), requires_grad=True)
+        self.conv_cw = nn.Conv1d(
+            partial_dim, partial_dim, kernel_size=3, padding=1, groups=partial_dim, bias=bias)
 
         self.conv_4 = nn.Conv2d(dim, dim, 1)
 
@@ -442,7 +484,8 @@ class MPLB(nn.Module):
         input_ = x
         x1, x2, x3 = torch.chunk(x, 3, dim=1)
         # hw
-        x1 = x1 * self.conv_hw(F.interpolate(self.hw, size=x1.shape[2:4], mode='bilinear', align_corners=True))
+        x1 = x1 * self.conv_hw(F.interpolate(self.hw,
+                               size=x1.shape[2:4], mode='bilinear', align_corners=True))
         # ch
         x2 = x2.permute(0, 3, 1, 2)
         x2 = x2 * self.conv_ch(
@@ -479,12 +522,13 @@ class MPMFNet(nn.Module):
         self.patch_embed_inr = PatchEmbed(
             patch_size=1, in_chans=in_chans, embed_dim=embed_dims[0], kernel_size=3)
         self.layer_inr = BasicLayer(network_depth=sum(depths), dim=embed_dims[0], depth=depths[0],
-                                 num_heads=num_heads[0], mlp_ratio=mlp_ratios[0],
-                                 norm_layer=norm_layer[0], window_size=window_size,
-                                 attn_ratio=attn_ratio[0], attn_loc='last', conv_type=conv_type[0])
+                                    num_heads=num_heads[0], mlp_ratio=mlp_ratios[0],
+                                    norm_layer=norm_layer[0], window_size=window_size,
+                                    attn_ratio=attn_ratio[0], attn_loc='last', conv_type=conv_type[0])
         self.inr = INR(dim=embed_dims[0])
 
-        self.patch_embed = PatchEmbed(patch_size=1, in_chans=in_chans * 2, embed_dim=embed_dims[0], kernel_size=3)
+        self.patch_embed = PatchEmbed(
+            patch_size=1, in_chans=in_chans * 2, embed_dim=embed_dims[0], kernel_size=3)
 
         self.layer1 = BasicLayer(network_depth=sum(depths), dim=embed_dims[0], depth=depths[0],
                                  num_heads=num_heads[0], mlp_ratio=mlp_ratios[0],
@@ -506,17 +550,18 @@ class MPMFNet(nn.Module):
 
         self.skip2 = nn.Conv2d(embed_dims[1], embed_dims[1], 1)
 
-        self.layer3 = BasicLayer(network_depth=sum(depths), dim=embed_dims[2], depth=depths[2] -1,
+        self.layer3 = BasicLayer(network_depth=sum(depths), dim=embed_dims[2], depth=depths[2] - 1,
                                  num_heads=num_heads[2], mlp_ratio=mlp_ratios[2],
                                  norm_layer=norm_layer[2], window_size=window_size,
                                  attn_ratio=attn_ratio[2], attn_loc='last', conv_type=conv_type[2])
 
         self.layer3_prompts = MPLB(embed_dims[2], size=(16, 16))
         self.layer3_mixer = BasicLayer(network_depth=sum(depths), dim=embed_dims[2] * 2, depth=1,
-                                 num_heads=num_heads[2], mlp_ratio=mlp_ratios[2],
-                                 norm_layer=norm_layer[2], window_size=window_size,
-                                 attn_ratio=attn_ratio[2], attn_loc='last', conv_type=conv_type[2])
-        self.layer3_reduce_channel = nn.Conv2d(embed_dims[2] * 2, embed_dims[2], 1)
+                                       num_heads=num_heads[2], mlp_ratio=mlp_ratios[2],
+                                       norm_layer=norm_layer[2], window_size=window_size,
+                                       attn_ratio=attn_ratio[2], attn_loc='last', conv_type=conv_type[2])
+        self.layer3_reduce_channel = nn.Conv2d(
+            embed_dims[2] * 2, embed_dims[2], 1)
 
         self.patch_split1 = PatchUnEmbed(
             patch_size=2, out_chans=embed_dims[3], embed_dim=embed_dims[2])
@@ -534,7 +579,8 @@ class MPMFNet(nn.Module):
                                       num_heads=num_heads[3], mlp_ratio=mlp_ratios[3],
                                       norm_layer=norm_layer[3], window_size=window_size,
                                       attn_ratio=attn_ratio[3], attn_loc='last', conv_type=conv_type[2])
-        self.layer4_reduce_channel = nn.Conv2d(embed_dims[3] * 2, embed_dims[3], 1)
+        self.layer4_reduce_channel = nn.Conv2d(
+            embed_dims[3] * 2, embed_dims[3], 1)
 
         self.patch_split2 = PatchUnEmbed(
             patch_size=2, out_chans=embed_dims[4], embed_dim=embed_dims[3])
@@ -552,12 +598,13 @@ class MPMFNet(nn.Module):
                                       num_heads=num_heads[4], mlp_ratio=mlp_ratios[4],
                                       norm_layer=norm_layer[4], window_size=window_size,
                                       attn_ratio=attn_ratio[4], attn_loc='last', conv_type=conv_type[4])
-        self.layer5_reduce_channel = nn.Conv2d(embed_dims[4] * 2, embed_dims[4], 1)
+        self.layer5_reduce_channel = nn.Conv2d(
+            embed_dims[4] * 2, embed_dims[4], 1)
 
         self.refinement = BasicLayer(network_depth=sum(depths), dim=embed_dims[4], depth=depths[5],
-                                 num_heads=num_heads[4], mlp_ratio=mlp_ratios[4],
-                                 norm_layer=norm_layer[4], window_size=window_size,
-                                 attn_ratio=attn_ratio[4], attn_loc='last', conv_type=conv_type[4])
+                                     num_heads=num_heads[4], mlp_ratio=mlp_ratios[4],
+                                     norm_layer=norm_layer[4], window_size=window_size,
+                                     attn_ratio=attn_ratio[4], attn_loc='last', conv_type=conv_type[4])
 
         self.patch_unembed = PatchUnEmbed(
             patch_size=1, out_chans=out_chans, embed_dim=embed_dims[4], kernel_size=3)
@@ -624,12 +671,12 @@ class MPMFNet(nn.Module):
         x, x_inr = self.inr_process(x)
         x = self.forward_features(x)
 
-        x = x+ input_
+        x = x + input_
         return x, x_inr
 
 
 if __name__ == '__main__':
-    x = torch.randn((1, 3, 64, 64)).cuda()
+    x = torch.randn((1, 3, 256, 256)).cuda()
     net = MPMFNet().cuda()
     y = net(x)
     print(y[0].shape)
@@ -637,6 +684,7 @@ if __name__ == '__main__':
 
     from thop import profile, clever_format
 
-    flops, params = profile(net, (x,))
-    flops, params = clever_format([flops, params], "%.4f")
-    print(flops, params)
+    macs, params = profile(net, (x,),verbose=False)
+    macs = macs / 1e6
+    params = params / 1e6
+    print(f"MACs: {macs:.2f}M, Params: {params:.2f}M")
