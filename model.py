@@ -340,11 +340,11 @@ class BasicLayer(nn.Module):
             for i in range(depth)])
 
     def forward(self, x):
-        print(x.shape)
+        # print(x.shape)
         for blk in self.blocks:
             x = blk(x)
 
-        print(x.shape)
+        # print(x.shape)
         return x
 
 
